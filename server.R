@@ -1,6 +1,6 @@
-# Shiny server interface for Time Series visualiastion and annotation
+# Shiny server interface for Time Series Visualiastion and annotation
 #
-# Version 0.2 - Gary Mulder - 03/11/2016
+# Version 0.1 - Gary Mulder - 26/11/20166
 
 library(shiny)
 library(tidyverse)
@@ -14,16 +14,11 @@ library(googlesheets)
 shinyServer(function(input, output) {
   # State for the UI
   rv <-
-    reactiveValues(
-      time_range = list(
-        start = min(ts_df$date.time),
-        end = max(ts_df$date.time)
-      ),
-      undo_stack = list(),
-      ts_annotations = list()
-      # ,
-      # y_log_axis = TRUE
-    )
+    reactiveValues(time_range = list(
+      start = min(ts_df$timestamp),
+      end = max(ts_df$timestamp)
+    ),
+    undo_stack = list())
   
   # Main ggplot function
   plot_time_series <-
@@ -39,38 +34,38 @@ shinyServer(function(input, output) {
       # str(ts_df)
       # str(rv$time_range)
       
-      ts_df %>%
-        filter(date.time >= time_range$start &
-                 date.time <= time_range$end)  %>%
-        ggplot(aes_string(x = "date.time", y = input$time_series_name)) +
-        geom_line(size = 0.5) +
-        expand_limits(y = 0) ->
-        gg_plot
+      ts_df_range <-
+        ts_df %>%
+        filter(timestamp >= time_range$start &
+                 timestamp <= time_range$end)
+      ts_df_long_range <-
+        ts_df_long %>%
+        filter(timestamp >= time_range$start &
+                 timestamp <= time_range$end)
+      ts_label_range <-
+        ts_label %>%
+        filter((date.time  + 3600) >= time_range$start &
+                 (date.time  + 3600) <= time_range$end)
       
-      # Add filtered annotations, if they exist
-      if (!is.null(rv$ts_annotations[[input$time_series_name]])) {
-        rv$ts_annotations[[input$time_series_name]] %>%
-          filter(date.time >= time_range$start &
-                   date.time <= time_range$end) ->
-          filtered_annotations
-        # str(filtered_annotations)
-        if (nrow(filtered_annotations) > 0) {
-          gg_plot <-
-            gg_plot + geom_label(data = filtered_annotations,
-                                 aes(
-                                   x = date.time,
-                                   y = value,
-                                   label = annotation
-                                 ))
-        }
-      }
-      
-      gg_plot
-      
-      # if (rv$y_log_axis)
-      #   gg + scale_y_log10()
-      # else
-      #   gg + scale_y_continuous()
+      ggplot() +
+        geom_line(data = ts_df_range,
+                  aes(x = timestamp, y = value),
+                  size = 0.5) +
+        geom_jitter(
+          data = ts_df_long_range,
+          aes(x = timestamp,
+              y = metric,
+              colour = series),
+          # alpha = 0.7,
+          # shape = 21,
+          size = 2,
+          height = 0.1) +
+        geom_label(data = ts_label_range,
+                   aes(
+                     x = date.time + 3600,
+                     y = value,
+                     label = annotation
+                   ))
     }
   
   # UI event state changes we need to handle
@@ -181,85 +176,6 @@ shinyServer(function(input, output) {
                    rv$time_range <-
                    time_range
                })
-  
-  # Double-click annotates the current time series
-  observeEvent(input$dbl_click, {
-    # str(input$dbl_click)
-    message(
-      "Annotation on ",
-      input$time_series_name,
-      " at ",
-      as.POSIXct(as.integer(input$dbl_click$x), origin = "1970-01-01"),
-      " labelled: >",
-      input$annotation_text,
-      "<"
-    )
-    # We store the annotations in a list of data_frames. Each data_frame is indexed through the time series name
-    rv$ts_annotations[[input$time_series_name]] <-
-      rbind(
-        rv$ts_annotations[[input$time_series_name]],
-        data_frame(
-          date.time = as.POSIXct(as.integer(input$dbl_click$x), origin = "1970-01-01"),
-          value = as.integer(input$dbl_click$y),
-          annotation = input$annotation_text
-        )
-      )
-    # str(rv$ts_annotations)
-  })
-  
-  # Load historical annotations from Google Sheets
-  observeEvent(input$load_annotation,
-               {
-                 ts_annotations <-
-                   rv$ts_annotations
-                 
-                 gsheet_ts_annotations <-
-                   googlesheets::gs_key(sheet_key)
-                 
-                 print(paste0("Loading:>", input$time_series_name, "<"))
-                 print(gs_ws_ls(gsheet_ts_annotations))
-                 ts_annotations[[input$time_series_name]] <-
-                   gs_read(gsheet_ts_annotations,
-                           ws = input$time_series_name)
-                 str(ts_annotations)
-                 
-                 rv$ts_annotations <-
-                   ts_annotations
-               })
-  
-  # Save currently chosen annotation to Google Sheets using the ts_name as the worksheet name
-  observeEvent(input$save_annotation,
-               {
-                 ts_annotations <-
-                   rv$ts_annotations
-                 
-                 gsheet_ts_annotations <-
-                   googlesheets::gs_key(sheet_key)
-                 
-                 work_sheets <-
-                   gs_ws_ls(gsheet_ts_annotations)
-                 print(work_sheets)
-                 if (!input$time_series_name %in% work_sheets) {
-                   gs_ws_new(gsheet_ts_annotations,
-                             ws_title = input$time_series_name)
-                 }
-                 
-                 gs_edit_cells(
-                   gsheet_ts_annotations,
-                   ws = input$time_series_name,
-                   input = ts_annotations[[input$time_series_name]],
-                   col_names = TRUE,
-                   trim = TRUE,
-                   verbose = TRUE
-                 )
-               })
-  
-  # observeEvent(input$toggle_log_scale,
-  #              {
-  #                print("Toggle Log Scale")
-  #                rv$y_log_axis <-
-  #                  !rv$y_log_axis
-  #              })
   
   output$time_series_plot <- renderPlot({
     plot_time_series()

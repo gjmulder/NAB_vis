@@ -1,21 +1,15 @@
-# Shiny UI design for NAB Results visualisation
+# Shiny UI design for NAB Results Visualisation
 #
-# Version 0.1 - Gary Mulder - 25/11/2016
-
-# 1. choose a time series
-# 2. double click to annotate with text
-# 3. show annotations for the chosen time series
-# 4. move forward an hour / day / week / month
+# Version 0.1 - Gary Mulder - 26/11/2016
 
 library(shiny)
 
 shinyUI(fluidPage(
-  titlePanel("ROnan - manual exploration of time series"),
+  titlePanel("NAB Results Graphical Viewer"),
   
   # The ggplot visualisation area
   plotOutput(
     outputId = "time_series_plot",
-    dblclick = "dbl_click",
     brush = brushOpts(
       id = "plot_brush",
       direction = "x",
@@ -31,8 +25,8 @@ shinyUI(fluidPage(
            dateRangeInput(
              inputId = "date_range",
              label = "Specify a date range, or select an area of the plot to zoom in",
-             start = min(ts_df$date.time),
-             end = max(ts_df$date.time)
+             start = min(ts_df$timestamp),
+             end = max(ts_df$timestamp)
            ),
            actionButton(inputId = "minus_week",
                         label = "-1 Week"),
@@ -47,32 +41,7 @@ shinyUI(fluidPage(
            actionButton(inputId = "plus_week",
                         label = "+1 Week"),
            actionButton(inputId = "unzoom",
-                        label = "Unzoom"),
-           # actionButton(inputId ="toggle_log_scale",
-           #              label = "Toggle Log Scale"),
-           selectInput(
-             inputId = "time_series_name",
-             label = "Time Series",
-             choices = colnames(ts_df[-1])[order(colnames(ts_df[-1]))]
-             
-           ),
-           selectInput(
-             inputId = "annotation_text",
-             label = "Annotation Text",
-             choices = c(
-               "s_an",
-               "e_an",
-               "s_ld",
-               "e_ld",
-               "s_dt",
-               "e_dt",
-               "oops"
-             )
-           ),
-           actionButton(inputId = "load_annotation",
-                        label = "Load Annotation"),
-           actionButton(inputId = "save_annotation",
-                        label = "Save Annotation")
+                        label = "Unzoom")
     )
   )
 ))
